@@ -58,6 +58,7 @@ def parse_args():
     parser.add_argument('--perplexity', type=int, default=50, help="perplexity for T-SNE")
     parser.add_argument('--GTN_K', type=int, default=3, help="K in GTN")
     parser.add_argument('--GTN_alpha', type=float, default=0.3, help="alpha in GTN")
+    parser.add_argument('--svd_q', type=int, default=5, help="q in LightGCL's SVD")
     parser.add_argument('--comment', type=str, default='6.25', help="comment for the experiment")
     parser.add_argument('--c', type=str, default='nothing', help="note something for this experiment")
 

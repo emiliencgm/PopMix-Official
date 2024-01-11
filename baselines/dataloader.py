@@ -11,6 +11,7 @@ import world
 from world import cprint
 from time import time
 import networkx as nx
+from torch_geometric.data import Data
 
 class dataset(Dataset):
 
@@ -136,6 +137,7 @@ class dataset(Dataset):
         self._edge_indices = self.get_edge_indices()
 
         self.getSparseGraph()
+        self.get_edge_index()
 
         print(f"{config['dataset']} is ready to go")
 
@@ -197,6 +199,15 @@ class dataset(Dataset):
         It's sparse, .to_dense() if many indices are needed.
         '''
         return self._edge_indices
+    
+    def get_edge_index(self):
+        '''
+        graph: (n_user+n_item) * (n_user+n_item)
+        '''
+        self.edge_index = torch.LongTensor([list(np.append(self.trainUser, self.trainItem+self.n_user)), 
+                                        list(np.append(self.trainItem+self.n_user, self.trainUser))]).to(world.device)
+        self.graph_pyg = Data(edge_index=self.edge_index.contiguous())
+        return self.edge_index
 
 
     def _convert_sp_mat_to_sp_tensor(self, X):

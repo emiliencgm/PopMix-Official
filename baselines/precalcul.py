@@ -12,6 +12,7 @@ import time
 from scipy.sparse import csr_matrix
 import torch_sparse
 import matplotlib.pyplot as plt
+import copy
 
 #=============================================================Overall Precalculate============================================================#
 class precalculate():
@@ -26,6 +27,9 @@ class precalculate():
                 self.C = Centroid(dataset, self.P)
             if config['adaptive_method'] in ['commonNeighbor', 'mlp']:
                 self.CN = CommonNeighbor(dataset)
+        if world.config['augment'] in ['SVD']:
+            self.SVD_Graph = SVD(dataset)
+
         
     @property
     def popularity(self):
@@ -515,3 +519,51 @@ class CommonNeighbor():
         end = time.time()
         print('CN_simi_unsymmetry_mat_sp cost: ',end-start)
         return edge_weight
+
+
+class SVD():
+    def __init__(self, dataset:dataset):
+        self.UInet = dataset.UserItemNet
+        self.svd()
+    
+    def svd(self):
+        # load data
+        print('Performing SVD...')
+        train = self.UInet
+
+        train = train.tocoo()
+
+        # normalizing the adj matrix
+        rowD = np.array(train.sum(1)).squeeze()
+        colD = np.array(train.sum(0)).squeeze()
+        for i in range(len(train.data)):
+            train.data[i] = train.data[i] / pow(rowD[train.row[i]]*colD[train.col[i]], 0.5)
+
+        train = train.tocoo()
+
+        adj_norm = self.scipy_sparse_mat_to_torch_sparse_tensor(train)
+        adj_norm = adj_norm.coalesce().cuda(torch.device(world.device))
+
+        # perform svd reconstruction
+        adj = self.scipy_sparse_mat_to_torch_sparse_tensor(train).coalesce().cuda(torch.device(world.device))
+        svd_u,s,svd_v = torch.svd_lowrank(adj, q=world.config['svd_q'])
+        u_mul_s = svd_u @ (torch.diag(s))
+        v_mul_s = svd_v @ (torch.diag(s))
+        del s
+        
+        self.u_mul_s = u_mul_s
+        self.v_mul_s = v_mul_s
+        self.ut = svd_u.T
+        self.vt = svd_v.T
+
+        self.adj_norm = adj_norm
+
+        print('SVD done.')
+
+    def scipy_sparse_mat_to_torch_sparse_tensor(self, sparse_mx):
+        sparse_mx = sparse_mx.tocoo().astype(np.float32)
+        indices = torch.from_numpy(
+            np.vstack((sparse_mx.row, sparse_mx.col)).astype(np.int64))
+        values = torch.from_numpy(sparse_mx.data)
+        shape = torch.Size(sparse_mx.shape)
+        return torch.sparse.FloatTensor(indices, values, shape)

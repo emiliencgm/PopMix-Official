@@ -51,6 +51,7 @@ config['adaptive_method'] = args.adaptive_method
 config['if_visual'] = args.if_visual
 config['GTN_K'] = args.GTN_K
 config['GTN_alpha'] = args.GTN_alpha
+config['svd_q'] = args.svd_q
 config['pop_gamma'] = args.pop_gamma
 config['if_valid'] = args.if_valid
 config['temp_tau_pop'] = args.temp_tau_pop

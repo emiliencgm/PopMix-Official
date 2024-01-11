@@ -13,6 +13,7 @@ class Train():
     def __init__(self, loss_cal):
         self.loss = loss_cal
         self.test = Test()
+        self.temp = world.config['temp_tau']
 
     def train(self, dataset, Recmodel, augmentation, epoch, optimizer, pop_class):
         Recmodel = Recmodel
@@ -53,7 +54,10 @@ class Train():
             optimizer.step()
             
             aver_loss += l_all.cpu().item()
-            aver_pop_acc += pop_acc.cpu().item()
+            if pop_acc:
+                aver_pop_acc += pop_acc.cpu().item()
+            else:
+                aver_pop_acc = 0
             
         aver_loss = aver_loss / (total_batch)
         aver_pop_acc = aver_pop_acc / (total_batch)
@@ -77,25 +81,70 @@ class Train():
 
     def BPR_Contrast_train(self, Recmodel, batch_users, batch_pos, batch_neg, augmentation, pop_class, epoch):
 
-        users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0, embs_per_layer_or_all_embs= Recmodel.getEmbedding(batch_users.long(), batch_pos.long(), batch_neg.long())
+        if world.config['augment'] in ['SVD']:
+            G_u, G_i, E_u, E_i = Recmodel.LightGCL_svd_computer()
+            users_emb = E_u[batch_users]
+            pos_emb = E_i[batch_pos]
+            neg_emb = E_i[batch_neg]
+            users_emb_ego = Recmodel.embedding_user(batch_users)
+            pos_emb_ego1 = Recmodel.embedding_item(batch_pos)
+            neg_emb_ego = Recmodel.embedding_item(batch_neg)
 
-        if world.config['model'] in ['SGL']:
-            aug_users1, aug_items1 = Recmodel.view_computer(augmentation.augAdjMatrix1)
-            aug_users2, aug_items2 = Recmodel.view_computer(augmentation.augAdjMatrix2)
-        elif world.config['model'] in ['SimGCL']:
-            aug_users1, aug_items1 = Recmodel.view_computer()
-            aug_users2, aug_items2 = Recmodel.view_computer()
+            iids = torch.concat([batch_pos, batch_neg], dim=0)
 
-        l_all = self.loss.bpr_contrast_loss(users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0, batch_users, batch_pos, batch_neg, aug_users1, aug_items1, aug_users2, aug_items2)
+            # reg = (1/6)*(users_emb_ego.norm(2).pow(2) + pos_emb_ego1.norm(2).pow(2) + neg_emb_ego.norm(2).pow(2))/len(batch_users)
+            reg = (0.5 * torch.norm(users_emb_ego) ** 2 + len(batch_users) * 0.5 * torch.norm(pos_emb_ego1) ** 2)/len(batch_users)
+
+            # cl loss
+            G_u_norm = G_u
+            E_u_norm = E_u
+            G_i_norm = G_i
+            E_i_norm = E_i
+            neg_score = torch.log(torch.exp(G_u_norm[batch_users] @ E_u_norm.T / self.temp).sum(1) + 1e-8).mean()
+            neg_score += torch.log(torch.exp(G_i_norm[iids] @ E_i_norm.T / self.temp).sum(1) + 1e-8).mean()
+            pos_score = (torch.clamp((G_u_norm[batch_users] * E_u_norm[batch_users]).sum(1) / self.temp,-5.0,5.0)).mean() + (torch.clamp((G_i_norm[iids] * E_i_norm[iids]).sum(1) / self.temp,-5.0,5.0)).mean()
+            loss_cl = -pos_score + neg_score
+
+            loss_bpr = self.bpr_loss(users_emb, pos_emb, neg_emb)
+
+            loss_all = world.config['weight_decay']*reg + loss_bpr + world.config['lambda1']*loss_cl
+
+            classifier_loss, classifier_acc = pop_class['classifier'].cal_loss_and_test(pos_emb.detach(), batch_pos)
+            pop_class['optimizer'].zero_grad()
+            classifier_loss.backward()
+            pop_class['optimizer'].step()
+
+            return loss_all, classifier_acc
+        
+        else:
+            users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0, embs_per_layer_or_all_embs= Recmodel.getEmbedding(batch_users.long(), batch_pos.long(), batch_neg.long())
+
+            if world.config['model'] in ['SGL']:
+                aug_users1, aug_items1 = Recmodel.view_computer(augmentation.augAdjMatrix1)
+                aug_users2, aug_items2 = Recmodel.view_computer(augmentation.augAdjMatrix2)
+            elif world.config['model'] in ['SimGCL']:
+                aug_users1, aug_items1 = Recmodel.view_computer()
+                aug_users2, aug_items2 = Recmodel.view_computer()
+
+            l_all = self.loss.bpr_contrast_loss(users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0, batch_users, batch_pos, batch_neg, aug_users1, aug_items1, aug_users2, aug_items2)
 
 
-        classifier_loss, classifier_acc = pop_class['classifier'].cal_loss_and_test(pos_emb.detach(), batch_pos)
-        pop_class['optimizer'].zero_grad()
-        classifier_loss.backward()
-        pop_class['optimizer'].step()
+            classifier_loss, classifier_acc = pop_class['classifier'].cal_loss_and_test(pos_emb.detach(), batch_pos)
+            pop_class['optimizer'].zero_grad()
+            classifier_loss.backward()
+            pop_class['optimizer'].step()
 
 
-        return l_all, classifier_acc
+            return l_all, classifier_acc
+        
+    def bpr_loss(self, users_emb, pos_emb, neg_emb):
+        pos_scores = torch.mul(users_emb, pos_emb)
+        pos_scores = torch.sum(pos_scores, dim=1)
+        neg_scores = torch.mul(users_emb, neg_emb)
+        neg_scores = torch.sum(neg_scores, dim=1)
+        # mean or sum
+        loss = torch.sum(torch.nn.functional.softplus(-(pos_scores - neg_scores)))#TODO SOFTPLUS()!!!
+        return loss/world.config['batch_size']
 
     def PDA_train(self, Recmodel, batch_users, batch_pos, batch_neg, augmentation, pop_class, epoch):
 

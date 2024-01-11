@@ -31,7 +31,7 @@ class BPR_Contrast_loss(BPR_loss):
         super(BPR_Contrast_loss, self).__init__(config, model, precalculate)
         self.tau = config['temp_tau']
 
-    def bpr_contrast_loss(self, users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0, batch_user, batch_pos, batch_neg, aug_users1, aug_items1, aug_users2, aug_items2):
+    def bpr_contrast_loss(self, users_emb, pos_emb, neg_emb, userEmb0, posEmb0, negEmb0, batch_user, batch_pos, batch_neg, aug_users1, aug_items1, aug_users2, aug_items2):
 
         reg_loss = (1/2)*(userEmb0.norm(2).pow(2) + posEmb0.norm(2).pow(2) + negEmb0.norm(2).pow(2))
         pos_scores = torch.sum(torch.mul(users_emb, pos_emb), dim=1)
