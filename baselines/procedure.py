@@ -137,14 +137,19 @@ class Train():
 
             return l_all, classifier_acc
         
-    def bpr_loss(self, users_emb, pos_emb, neg_emb):
-        pos_scores = torch.mul(users_emb, pos_emb)
-        pos_scores = torch.sum(pos_scores, dim=1)
-        neg_scores = torch.mul(users_emb, neg_emb)
-        neg_scores = torch.sum(neg_scores, dim=1)
-        # mean or sum
-        loss = torch.sum(torch.nn.functional.softplus(-(pos_scores - neg_scores)))#TODO SOFTPLUS()!!!
-        return loss/world.config['batch_size']
+    def bpr_loss(self, u_emb, pos_emb, neg_emb):
+        # pos_scores = torch.mul(users_emb, pos_emb)
+        # pos_scores = torch.sum(pos_scores, dim=1)
+        # neg_scores = torch.mul(users_emb, neg_emb)
+        # neg_scores = torch.sum(neg_scores, dim=1)
+        # # mean or sum
+        # loss = torch.sum(torch.nn.functional.softplus(-(pos_scores - neg_scores)))#TODO SOFTPLUS()!!!
+        # return loss/world.config['batch_size']
+        pos_scores = (u_emb * pos_emb).sum(-1)
+        neg_scores = (u_emb * neg_emb).sum(-1)
+        loss_r = -(pos_scores - neg_scores).sigmoid().log().mean()
+
+        return loss_r
 
     def PDA_train(self, Recmodel, batch_users, batch_pos, batch_neg, augmentation, pop_class, epoch):
 
