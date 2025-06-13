@@ -1,5 +1,9 @@
 # Exploring Explicit Debiasing with Augmentation for Contrastive Collaborative Filtering
 
+## Published as a conference paper at IJCNN2024
+doi: 10.1109/IJCNN60899.2024.10651019
+
+## Notes
 - In order to reduce the file size, precalculated results are removed from it. They will be automatically recalculated before training for our method. Please be patient and wait.
 - The file `run.py` provides a simple example of running the program. To run our proposed method:
     - First, enter the `code` directory.
