@@ -1,7 +1,8 @@
 # Exploring Explicit Debiasing with Augmentation for Contrastive Collaborative Filtering
 
 ## Published as a conference paper at IJCNN2024
-doi: 10.1109/IJCNN60899.2024.10651019
+G. Chen, W. Qiang, Y. Ouyang, C. Yin and Z. Xiong, "Is Encoded Popularity Always Harmful? Explicit Debiasing with Augmentation for Contrastive Collaborative Filtering," 2024 International Joint Conference on Neural Networks (IJCNN), Yokohama, Japan, 2024, pp. 1-9, doi: 10.1109/IJCNN60899.2024.10651019.
+
 
 ## Notes
 - In order to reduce the file size, precalculated results are removed from it. They will be automatically recalculated before training for our method. Please be patient and wait.
